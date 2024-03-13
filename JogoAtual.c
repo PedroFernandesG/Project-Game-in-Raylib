@@ -8,10 +8,9 @@
 #define FATOR_REDUCAO 0.15
 #define NUM_PERSONAGENS 2
 
-//Definição dos estados de transição de tela do jogo
-typedef enum EstadosDeTela {Carregamento, Titulo, Gameplay, Personagem, Mapa, Controles, Opcoes, Final}EstadosDeTela;
+typedef enum EstadosDeTela {Carregamento,Titulo,Gameplay,Solo,Personagem,Mapa,Controles,Opcoes,Final}EstadosDeTela;
 
-//Estrutura para os personagens com suas respectivas caracteristicas
+//Estrutura do personagem
 typedef struct {
 
     Rectangle posRect;
@@ -26,8 +25,7 @@ typedef struct {
     bool isAttacking;
 
 } Character;
-
-//Estrutura para os projéteis com suas caracteristicas
+//Estrutura do projetil
 typedef struct
 {
     Character player;
@@ -36,8 +34,7 @@ typedef struct
     Vector2 speed;
     bool active;
 
-} Projectile;
-
+}Projectile;
 //Estrutura para os itens do menu
 typedef struct {
   
@@ -47,52 +44,6 @@ typedef struct {
     Color rectColor;
   
 } MenuItem;
-// Função para atualizar a posição do personagem e mantê-lo dentro dos limites da tela
-void atualizarPersonagem(Character *character, int sentido, int screenWidth){
-    //Atualiza a posição do personagem
-    character->posRect.x += sentido * 5;
-
-    //Controle de movimentação do personagem dentro dos limites da tela
-    if (character->posRect.x < 0)
-        character->posRect.x = 0;
-    if (character->posRect.x + character->posRect.width > WIDTHSCREEN)
-        character->posRect.x = screenWidth - character->posRect.width;
-}
-
-// Função para desenhar um personagem
-void desenharCharacter(Character *character, Texture2D texture) {
-    DrawTexturePro(texture, character->SourceRect, character->posRect,(Vector2){0, 0}, 0, WHITE);
-}
-// Função para disparar um projétil
-void dispararProjetil(Projectile *projetcile){
-
-    //Verifica se o projetil não esta ativo antes de dispara-lo
-    if (!projetcile->active) {
-        //projetcile->Source.x = projetcile->Source.x
-        //projetcile->Source.y = projetcile->Source.y;
-        projetcile->active = true;
-    }
-}
-
-void aplicarGravidade(Character *Character, int *countJump) {
-    // Se o jogador estiver pulando atualize suas posições
-    if (Character->isJumping) {
-        Character->posRect.y -= Character->jumpSpeed;
-        Character->jumpForce -= Character->jumpSpeed/1.7;
-    
-        // Verifica se o pulo terminou
-        if (Character->jumpForce <= 0) {
-            Character->isJumping = false;
-        }
-    } else {
-        // Aplica a gravidade ao jogador
-        if((Character->posRect.y + Character->posRect.height) < 650) {
-            Character->posRect.y += 14;
-        }
-        else
-            (*countJump) = 0;
-    }
-}
 
 //Declaração de variáveis relacionadas ao audio
 bool audioLigado = true;
@@ -102,10 +53,12 @@ Sound musicaFinal;
 Sound fxSoco;
 Sound fxChute;
 Sound fxHadouken;
+Sound fxVidaExtra;
 Sound fxPulo;
 Sound fxCombate;
 Sound fxSelecao;
 
+//Função que inicializa os audios
 void initAudios() {
     //Carregamento dos audios
     SetMasterVolume(1.0f);
@@ -121,6 +74,8 @@ void initAudios() {
 
     fxHadouken = LoadSound("hadouken.wav");
 
+    fxVidaExtra = LoadSound("vidaExtra.wav");
+
     fxPulo = LoadSound("pulo.wav");
 
     fxCombate = LoadSound("combate.wav");
@@ -128,6 +83,7 @@ void initAudios() {
     fxSelecao = LoadSound("selecao.wav");
 }
 
+//Função que toca as músicas
 void tocaAudio(int num) {
     if(num == 1) {
         StopSound(musicaFinal);
@@ -147,24 +103,93 @@ void tocaAudio(int num) {
 
 }
 
+// Função para atualizar a posição do personagem e mantê-lo dentro dos limites da tela
+void atualizarPersonagem(Character *character, int sentido, int screenWidth){
+    character->posRect.x += sentido * character->velocity;
+
+    //Controle de movimentação do personagem dentro dos limites da tela
+    if (character->posRect.x < 0)
+        character->posRect.x = 0;
+    if (character->posRect.x + character->posRect.width > WIDTHSCREEN)
+        character->posRect.x = screenWidth - character->posRect.width;
+}
+void desenharCharacter(Character *character, Texture2D texture) {
+    DrawTexturePro(texture, character->SourceRect, character->posRect,(Vector2){0, 0}, 0, WHITE);
+}
+void dispararProjetil(Projectile *projetcile){
+
+    if (!projetcile->active){
+        //projetcile->Source.x = projetcile->Source.x
+        //projetcile->Source.y = projetcile->Source.y;
+        projetcile->active = true;
+    }
+}
+
+void aplicarGravidade(Character *Character, int *countJump, int num) {
+    if (Character->isJumping) {
+        Character->posRect.y -= Character->jumpSpeed;
+        Character->jumpForce -= Character->jumpSpeed/1.7;
+
+        // Verifica se o pulo terminou
+        if (Character->jumpForce <= 0) {
+            Character->isJumping = false;
+        }
+        }else{
+            if(num == 0){
+                if((Character->posRect.y + Character->posRect.height) < 650) {
+                    Character->posRect.y += 14;
+                }
+                else
+                    (*countJump) = 0;
+            }
+            else
+                if((Character->posRect.y + Character->posRect.height) < 565) {
+                    Character->posRect.y += 14;
+                }
+                else
+                    (*countJump) = 0;
+        }
+}
 int main(void) {
     
+    InitWindow(WIDTHSCREEN, HEIGHTSCREEN, "Bloody War");
     InitAudioDevice();
     initAudios();
-    InitWindow(WIDTHSCREEN, HEIGHTSCREEN, "Bloody War");
 
+    //Variavel para os ganhos aleatorios de bonus de vida
+    int luckyLife1 = 0;
+    int luckyLife2 = 0;
+    int luckyLife3 = 0;
+
+    //Variavel pra determinar quem venceu
+    int whoWins=0;
+
+    //Variaveis de controle para o shield do segundo personagem
+    bool Shield = false;
+    int timeShield = 0;
+    int cooldownShield = 0;
+    int vidaInicial = 0;
+
+    //Variaveis referente a escolha de personagem
+    int player1Active = 0;
+    int player2Active = 0;
+
+    //Variavel de controle de altura
     int controlHeight = 0;
 
+    //Variavel para simular um cooldown do projetil
     int TimeProjectile = 0;
     int TimeProjectile2 = 0;
 
-    //Tempo de ataque
+    //Tempo de ataque dos personagens
     double timeAttack = 0;
     double timeAttack2 = 0;
+    double timeAttack3 = 0;
 
     //Contador para os sprites dos personagens
     int countSprite = 0;
     int countSprite2 = 0;
+    int countSprite3 = 0;
 
     //Variáveis para controlar o cronometro
     int counterFps = 0;
@@ -172,30 +197,35 @@ int main(void) {
     int fpsAtual;
 
     // Definição da quantidade de items por menu
-    int numItemsMenu = 3;
+    int numItemsMenu = 4;
     int numItemsOptions = 2;
 
     //Variaveis para controlar os pulos dos personagens
     int countJump = 0;
     int countJump2 = 0;
+    int countJump3 = 0;
+
     //variáveis de tempo de cooldown para cada personagem
     int cooldownPlayer = 0;
     int cooldownEnemy = 0;
+    int cooldownPlayer2 = 0;
 
     int cooldownProjectilePlayer = 0;
     int cooldownProjectileEnemy = 0;
 
-    Character player = {{200, 300, 350, 350},{50 * countSprite + 24,88,50, 100},"Bloodthirsty",100, 3, 150, 0,20,0,false};
-    Character enemy = {{900,300,350,350},{100 * countSprite2,130,100,136},"Warrior",100,2,150,0,20,0,false};
+    Character player = {{200, 300, 350, 350},{50 * countSprite + 24,88,50, 100},"Bloodthirsty",250, 3, 150, 5,20,0,false};
+    Character enemy = {{900,300,350,350},{100 * countSprite2,130,100,136},"Warrior",250,2,150,3,20,0,false};
+    Character player2 = {{200,250,350,350},{80 * countSprite3 + 80,130,78,90},"Monster",250,2,130,5,20,0,false};
 
     Projectile projetcilePlayer = {player,{player.posRect.x + 150,player.posRect.y + 30,100,100 },{200,120,490,420} ,(Vector2){15, 0}, false};
     Projectile projetcileEnemy = {enemy,{enemy.posRect.x,enemy.posRect.y,100,100 },{0,0,220,220},{10, 0}, false};
 
     Rectangle DefaultSourcePlayer1 = player.SourceRect;
     Rectangle DefaultSourcePlayer2 = enemy.SourceRect;
+    Rectangle DefaultSourcePlayer3 = player2.SourceRect;
     Rectangle DefaultPositionPlayer2 = enemy.posRect;
-
     Rectangle posRect2;
+    Rectangle posRect3;
 
     //Posições dos textos do menu
     Vector2 textPosition1 = {785.f, 130.f};
@@ -265,14 +295,17 @@ int main(void) {
 
     Texture2D texture14;
 
-    
+    Image myImage15 = LoadImage("hero2.png");
+    Texture2D texture15 = LoadTextureFromImage(myImage15);
+    UnloadImage(myImage15);
 
     // Estado inicial da tela
     EstadosDeTela estadoTela = Carregamento;
   
     //Definindo os botões do menu
     MenuItem itemsMenu[] = {
-        {{793, 300, 400, 40}, "Click Here to battle!", WHITE, RED},
+        {{793, 300, 400, 40}, "Mode 2 Players", WHITE, RED},
+        {{793,350,400,40},"Mode SinglePlayer",WHITE,RED},
         {{900, 470, 200, 40}, "Options", WHITE, RED},
         {{900, 530, 200, 40}, "Controls", WHITE, RED},
     };
@@ -288,10 +321,13 @@ int main(void) {
     //Definindo 60 FPS
     SetTargetFPS(60);
 
-    while (!WindowShouldClose()) {
+    while (!WindowShouldClose()){
 
-        posRect2 = (Rectangle){player.posRect.x,player.posRect.y,100,100};
-
+        if(player1Active)
+            posRect2 = (Rectangle){player.posRect.x,player.posRect.y,100,100};
+        if(player2Active)
+            posRect3 = (Rectangle){player2.posRect.x - 100,player.posRect.y,100,100};
+                
         switch(estadoTela) {
             case Carregamento:
             {
@@ -311,15 +347,16 @@ int main(void) {
                     if (CheckCollisionPointRec(GetMousePosition(), itemsMenu[i].rect)) {
                         
                         //Checa se o mouse esta encima do botão, se verdadeiro altera a cor para indicação
-                        if(GetMouseX() == itemsMenu[i].rect.x || GetMouseY() == itemsMenu[i].rect.y)
+                        if(GetMouseX() == itemsMenu[i].rect.x || GetMouseY() == itemsMenu[i].rect.y) 
                             itemsMenu[i].rectColor = MAROON;
 
                         //Verifica se alguma opção da janela de titulo foi selecionada
                         if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
                             PlaySound(fxSelecao);
                             if (i == 0) estadoTela = Personagem;
-                            else if (i == 1) estadoTela = Opcoes;
-                            else if(i == 2) estadoTela = Controles;
+                                else if(i == 1) estadoTela = Solo;
+                                    else if (i == 2) estadoTela = Opcoes;
+                                        else if(i == 3) estadoTela = Controles;
                         }
                     }
                 }
@@ -330,43 +367,257 @@ int main(void) {
                     PlaySound(fxSelecao);
                     estadoTela = Mapa;
                 }
-            
+                
+                if(CheckCollisionPointRec(GetMousePosition(),(Rectangle){100, 400, 350, 350})){
+                    if(IsMouseButtonPressed(MOUSE_LEFT_BUTTON)){
+                        PlaySound(fxSelecao);
+                        estadoTela = Mapa;
+                        player1Active = 1;
+                    }
+                }
+                if(CheckCollisionPointRec(GetMousePosition(),(Rectangle){450,330,350,350})){
+                    if(IsMouseButtonPressed(MOUSE_LEFT_BUTTON)){
+                        PlaySound(fxSelecao);
+                        estadoTela = Mapa;
+                        player2Active = 1;
+                    }
+                }
 
             } break;
             case Mapa:
             {
                 if (IsKeyPressed(KEY_P)) {
-                    estadoTela = Gameplay;
                     PlaySound(fxSelecao);
                     tocaAudio(2);
+                    estadoTela = Gameplay;
                 }
 
                 if(CheckCollisionPointRec(GetMousePosition(),(Rectangle){150,400,250,250})){
                     if(IsMouseButtonPressed(MOUSE_LEFT_BUTTON)){
-                       estadoTela = Gameplay;
-                       texture14 = texture3;
-                       PlaySound(fxSelecao);
-                       tocaAudio(2);
+                        PlaySound(fxSelecao);
+                        tocaAudio(2);
+                        estadoTela = Gameplay;
+                        texture14 = texture3;
                     }
                 }
                 if(CheckCollisionPointRec(GetMousePosition(),(Rectangle){525,400,250,250})){
                     if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)){
-                        estadoTela = Gameplay;
-                        texture14 = texture12;
                         PlaySound(fxSelecao);
                         tocaAudio(2);
+                        estadoTela = Gameplay;
+                        texture14 = texture12;
                     }
                 }
                 if(CheckCollisionPointRec(GetMousePosition(),(Rectangle){925,400,250,250})){
                     if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)){
-                        estadoTela = Gameplay;
-                        texture14 = texture13;
                         PlaySound(fxSelecao);
                         tocaAudio(2);
+                        estadoTela = Gameplay;
+                        texture14 = texture13;
                     }
                 }
 
             }break;
+            case Solo:
+            {
+                //Se apertar P fecha o jogo
+                if (IsKeyPressed(KEY_P)) {
+                    tocaAudio(3);
+                    estadoTela = Final;
+                }
+
+                //Controle do cronometro
+                counterFps++;
+                if (counterFps == 120 || counterFps == fpsAtual + 60) {
+                    fpsAtual = counterFps;
+                    count--;
+                }    
+                if (counterFps == 7200) {
+                    tocaAudio(3);
+                    estadoTela = Final;
+                }
+
+                player1Active = 1;
+                if(rand()%1000 == 6 && luckyLife1 == 0){
+                        luckyLife1 = 1;
+                }
+                if(IsKeyPressed(KEY_E) && luckyLife1 == 1){
+                    PlaySound(fxVidaExtra);
+                    player.health = player.health + 30;
+                    luckyLife1 = 0;
+                }
+                if (IsKeyDown(KEY_D)){
+                    atualizarPersonagem(&player, 1, WIDTHSCREEN);
+                    countSprite = ((int)GetTime())%3;
+                    player.SourceRect = (Rectangle){50 * countSprite + 24,88, 50, 100};
+                }else
+                    player.SourceRect = (Rectangle){24,88, 50, 110};
+                
+                if(IsKeyDown(KEY_A)){
+                    atualizarPersonagem(&player, -1, WIDTHSCREEN);
+                    countSprite = ((int)GetTime())%3;
+                    player.SourceRect = (Rectangle){50 * countSprite + 24,88, 50, 100};
+                }
+
+                if(IsKeyPressed(KEY_C) && player.isAttacking == false && cooldownPlayer < GetTime()) {
+                    player.isAttacking = true;
+                    timeAttack = GetTime() + 0.2; 
+                    cooldownPlayer = GetTime() + 1;
+                }
+
+                if(player.isAttacking && GetTime() < timeAttack){
+                    // Desenhe a animação de ataque
+                    player.SourceRect = (Rectangle){325, 180, 70, 90};
+                    if(CheckCollisionRecs(enemy.posRect, player.posRect)) {
+                        enemy.health -= 1;   
+                    }
+                }
+                else if(player.isAttacking && GetTime() >= timeAttack) {
+                    // Se não estiver atacando ou o tempo de ataque acabar, volte para a animação padrão
+                    player.SourceRect = DefaultSourcePlayer1;
+                    player.isAttacking = false;
+                }
+                //Atualização da posição do projetil
+                if (IsKeyPressed(KEY_X) && cooldownProjectilePlayer < GetTime()) {
+                    dispararProjetil(&projetcilePlayer);
+                    TimeProjectile = GetTime() + 2.0;
+                    cooldownProjectilePlayer = GetTime() + 3;
+                }
+                //Se o projetil estiver ativo, tera uma taxa de atualização da posição X
+                if (projetcilePlayer.active) {
+                    projetcilePlayer.Source.x += projetcilePlayer.speed.x;
+
+                    if(GetTime() < TimeProjectile)
+                        player.SourceRect = (Rectangle){390,570,82,80};
+                    else    
+                        player.SourceRect = DefaultSourcePlayer1;
+
+                    //Se o projeto ultrapassar os limites da tela, ele deixa de ser ativo
+                    if (projetcilePlayer.Source.x > WIDTHSCREEN){
+                        projetcilePlayer.active = false;
+                        projetcilePlayer = (Projectile){player,{player.posRect.x + 150,player.posRect.y + 30,100,100 },{200,120,490,420} ,(Vector2){15, 0}, false};
+                    }
+                    
+                    if(CheckCollisionRecs(projetcilePlayer.Source,enemy.posRect)){
+                        enemy.health -= 2 * player.attackDamage;
+                        projetcilePlayer.active = false;
+                        projetcilePlayer = (Projectile){player,{player.posRect.x + 150,player.posRect.y + 30,100,100 },{200,120,490,420} ,(Vector2){15, 0}, false};
+                    }
+                    // Empurra o jogador para trás
+                    if (enemy.posRect.x < player.posRect.x) {
+                        player.posRect.x += 3; 
+                    }else
+                        player.posRect.x -= 3;  
+                    
+                }
+                if(IsKeyPressed(KEY_W) && !player.isJumping && countJump < 2) {
+                    PlaySound(fxPulo);
+                    countJump += 1;
+                    player.isJumping = true;
+                    player.jumpForce = 150;
+                }
+                aplicarGravidade(&player, &countJump,0);
+
+                //CONTROLE DO BOOT!!!
+                //------------------//
+                if((abs(player.posRect.x - enemy.posRect.x) < 300) && player.posRect.x > enemy.posRect.x){           
+                    atualizarPersonagem(&enemy,1,WIDTHSCREEN);
+                    if((abs(player.posRect.x - enemy.posRect.x) < 200)){
+                        if(enemy.isAttacking == false && cooldownEnemy < GetTime()) {
+                            enemy.isAttacking = true;
+                            timeAttack2 = GetTime() + 0.5; 
+                            cooldownEnemy = GetTime() + 2;
+                        }
+                        if(enemy.isAttacking && GetTime() < timeAttack2) {
+                        enemy.SourceRect = (Rectangle){925, 670, 95, 150};
+                            if(controlHeight < 1){
+                                enemy.posRect.y = enemy.posRect.y - 179;
+                                controlHeight++;
+                            }
+                            if(CheckCollisionRecs(enemy.posRect, player.posRect)) 
+                                player.health -= 1;
+                        }else if(enemy.isAttacking && GetTime() >= timeAttack2) {
+                        // Se não estiver atacando ou o tempo de ataque acabar, volte para a animação padrão
+                            enemy.SourceRect = DefaultSourcePlayer2;
+                            enemy.posRect.y = DefaultPositionPlayer2.y;
+                            controlHeight = 0;
+                            enemy.isAttacking = false;
+                        }
+                    }
+                }
+                else if((abs(player.posRect.x - enemy.posRect.x) < 300) && player.posRect.x < enemy.posRect.x){           
+                    atualizarPersonagem(&enemy,-1,WIDTHSCREEN);
+                    if((abs(player.posRect.x - enemy.posRect.x) < 200)){
+                        if(enemy.isAttacking == false && cooldownEnemy < GetTime()) {
+                            enemy.isAttacking = true;
+                            timeAttack2 = GetTime() + 0.5; 
+                            cooldownEnemy = GetTime() + 2;
+                        }
+                        if(enemy.isAttacking && GetTime() < timeAttack2) {
+                         enemy.SourceRect = (Rectangle){925, 670, 95, 150};
+                            if(controlHeight < 1){
+                                enemy.posRect.y = enemy.posRect.y - 39;
+                            controlHeight++;
+                            }
+                            if(CheckCollisionRecs(enemy.posRect, player.posRect)) 
+                                player.health -= 1;
+                        }else if(enemy.isAttacking && GetTime() >= timeAttack2) {
+                            //Se não estiver atacando ou o tempo de ataque acabar, volte para a animação padrão
+                            enemy.SourceRect = DefaultSourcePlayer2;
+                            enemy.posRect.y = DefaultPositionPlayer2.y;
+                            controlHeight = 0;
+                            enemy.isAttacking = false;
+                        }
+                    }
+                }
+                if((abs(projetcilePlayer.Source.x - enemy.posRect.x) < 330) && (abs(projetcilePlayer.Source.y - enemy.posRect.y) < 330) && projetcilePlayer.active){
+                    if(!enemy.isJumping && countJump2 < 2) {
+                        countJump2 += 1;
+                        enemy.isJumping = true;
+                        enemy.jumpForce = 150;
+                    }
+                }
+                if((abs(player.posRect.x - enemy.posRect.x) > 300)){
+                   
+                    if((rand()%20 == 4) && cooldownProjectileEnemy < GetTime()) {
+                    dispararProjetil(&projetcileEnemy);
+                    TimeProjectile2 = GetTime() + 1.0;
+                    cooldownProjectileEnemy = GetTime() + 5;
+                }
+                //Se o projetil estiver ativo, tera uma taxa de atualização da posição X
+                if (projetcileEnemy.active){
+                    projetcileEnemy.Source.x -= projetcileEnemy.speed.x;
+
+                    if(GetTime() < TimeProjectile2)
+                        enemy.SourceRect = (Rectangle){820,286,140,110};
+                    else    
+                        enemy.SourceRect = DefaultSourcePlayer2;
+
+                    //Se o projeto ultrapassar os limites da tela, ele deixa de ser ativo
+                    if(projetcileEnemy.Source.x < 0){
+                        projetcileEnemy.active = false;
+                        projetcileEnemy = (Projectile){enemy,{enemy.posRect.x,enemy.posRect.y,100,100 },{0,0,220,220},{10, 0}, false};                
+                    }
+                    if(CheckCollisionRecs(projetcileEnemy.Source,posRect2)){
+                        player.health -= enemy.attackDamage;
+                        projetcileEnemy.active = false;
+                        projetcileEnemy = (Projectile){enemy,{enemy.posRect.x,enemy.posRect.y,100,100 },{0,0,220,220},{10, 0}, false};                    
+                    }
+                }
+            }
+                aplicarGravidade(&enemy, &countJump2,0);
+
+                if (player.health <= 0 || enemy.health <= 0) {
+                    if(player.health > enemy.health)
+                        whoWins = 1;
+                    else if(player.health < enemy.health)   
+                        whoWins = 2;
+
+                    estadoTela = Final;
+                    tocaAudio(3);
+                }
+            }
+            break;
             case Gameplay:
             {
                 //Se apertar P fecha o jogo
@@ -385,86 +636,166 @@ int main(void) {
                     estadoTela = Final;
                     tocaAudio(3);
                 }
+
+                if(player1Active){
+                    if(rand()%1000 == 6 && luckyLife1 == 0){
+                        luckyLife1 = 1;
+                    }
+                    if(IsKeyPressed(KEY_E) && luckyLife1 == 1){
+                            PlaySound(fxVidaExtra);
+                            player.health = player.health + 30;
+                            luckyLife1 = 0;
+                    }
+                    //Movimentação do personagem de numero 1
+                    if (IsKeyDown(KEY_D)){
+                        atualizarPersonagem(&player, 1, WIDTHSCREEN);
+                        countSprite = ((int)GetTime())%3;
+                        player.SourceRect = (Rectangle){50 * countSprite + 24,88, 50, 100};
+                    }else
+                        player.SourceRect = (Rectangle){24,88, 50, 110};
                 
-                //Movimentação do personagem de numero 1
-                if (IsKeyDown(KEY_D)){
-                    atualizarPersonagem(&player, 1, WIDTHSCREEN);
-                    countSprite = ((int)GetTime())%3;
-                    player.SourceRect = (Rectangle){50 * countSprite + 24,88, 50, 100};
-                }else
-                    player.SourceRect = (Rectangle){24,88, 50, 110};
-                
-                if (IsKeyDown(KEY_A)){
-                    atualizarPersonagem(&player, -1, WIDTHSCREEN);
-                    countSprite = ((int)GetTime())%3;
-                    player.SourceRect = (Rectangle){50 * countSprite + 24,88, 50, 100};
-                }
-
-                if (IsKeyPressed(KEY_C) && player.isAttacking == false && cooldownPlayer < GetTime()) {
-                player.isAttacking = true;
-                timeAttack = GetTime() + 0.2; 
-                cooldownPlayer = GetTime() + 1;
-                }
-                if (player.isAttacking && GetTime() < timeAttack){
-                // Desenhe a animação de ataque
-                player.SourceRect = (Rectangle){325, 180, 70, 90};
-                if (CheckCollisionRecs(enemy.posRect, player.posRect)) {
-                    enemy.health -= 1;
-                    PlaySound(fxSoco);
-                    
-                }
-
-                }
-                else if(player.isAttacking && GetTime() >= timeAttack) {
-                // Se não estiver atacando ou o tempo de ataque acabar, volte para a animação padrão
-                player.SourceRect = DefaultSourcePlayer1;
-                player.isAttacking = false;
-                }
-                
-                //Atualização da posição do projetil
-                if (IsKeyPressed(KEY_X) && cooldownProjectilePlayer < GetTime()) {
-                    dispararProjetil(&projetcilePlayer);
-                    PlaySound(fxHadouken);
-                    TimeProjectile = GetTime() + 2.0;
-                    cooldownProjectilePlayer = GetTime() + 3;
-                }
-
-                //Se o projetil estiver ativo, tera uma taxa de atualização da posição X
-                if (projetcilePlayer.active) {
-                    projetcilePlayer.Source.x += projetcilePlayer.speed.x;
-
-                    if(GetTime() < TimeProjectile)
-                        player.SourceRect = (Rectangle){390,570,82,80};
-                    else    
+                    if(IsKeyDown(KEY_A)){
+                        atualizarPersonagem(&player, -1, WIDTHSCREEN);
+                        countSprite = ((int)GetTime())%3;
+                        player.SourceRect = (Rectangle){50 * countSprite + 24,88, 50, 100};
+                    }
+                    if(IsKeyPressed(KEY_C) && player.isAttacking == false && cooldownPlayer < GetTime()) {
+                        player.isAttacking = true;
+                        timeAttack = GetTime() + 0.2; 
+                        cooldownPlayer = GetTime() + 1;
+                    }
+                    if (player.isAttacking && GetTime() < timeAttack){
+                        //Desenhe a animação de ataque
+                        player.SourceRect = (Rectangle){325, 180, 70, 90};
+                        if (CheckCollisionRecs(enemy.posRect, player.posRect)) {
+                            PlaySound(fxSoco);
+                            enemy.health -= 1;
+                        }
+                    }
+                    else if(player.isAttacking && GetTime() >= timeAttack) {
+                        //Se não estiver atacando ou o tempo de ataque acabar, volte para a animação padrão
                         player.SourceRect = DefaultSourcePlayer1;
+                        player.isAttacking = false;
+                    }
+                    //Atualização da posição do projetil
+                    if(IsKeyPressed(KEY_X) && cooldownProjectilePlayer < GetTime()) {
+                        dispararProjetil(&projetcilePlayer);
+                        PlaySound(fxHadouken);
+                        TimeProjectile = GetTime() + 2.0;
+                        cooldownProjectilePlayer = GetTime() + 3;
+                    }
+                    //Se o projetil estiver ativo, tera uma taxa de atualização da posição X
+                    if(projetcilePlayer.active) {
+                        projetcilePlayer.Source.x += projetcilePlayer.speed.x;
 
-                    //Se o projeto ultrapassar os limites da tela, ele deixa de ser ativo
-                    if (projetcilePlayer.Source.x > WIDTHSCREEN){
-                        projetcilePlayer.active = false;
-                        projetcilePlayer = (Projectile){player,{player.posRect.x + 150,player.posRect.y + 30,100,100 },{200,120,490,420} ,(Vector2){15, 0}, false};
-                    }
+                        if(GetTime() < TimeProjectile)
+                            player.SourceRect = (Rectangle){390,570,82,80};
+                        else    
+                            player.SourceRect = DefaultSourcePlayer1;
+
+                        //Se o projeto ultrapassar os limites da tela, ele deixa de ser ativo
+                        if (projetcilePlayer.Source.x > WIDTHSCREEN){
+                            projetcilePlayer.active = false;
+                            projetcilePlayer = (Projectile){player,{player.posRect.x + 150,player.posRect.y + 30,100,100 },{200,120,490,420} ,(Vector2){15, 0}, false};
+                        }
                     
-                    if(CheckCollisionRecs(projetcilePlayer.Source,enemy.posRect)){
-                        enemy.health -= player.attackDamage;
-                        projetcilePlayer.active = false;
-                        projetcilePlayer = (Projectile){player,{player.posRect.x + 150,player.posRect.y + 30,100,100 },{200,120,490,420} ,(Vector2){15, 0}, false};
-                    }
-                    // Empurra o jogador para trás
-                    if (enemy.posRect.x < player.posRect.x) {
-                    player.posRect.x += 3; 
-                     } else {
+                        if(CheckCollisionRecs(projetcilePlayer.Source,enemy.posRect)){
+                            enemy.health -= 2 * player.attackDamage;
+                            projetcilePlayer.active = false;
+                            projetcilePlayer = (Projectile){player,{player.posRect.x + 150,player.posRect.y + 30,100,100 },{200,120,490,420} ,(Vector2){15, 0}, false};
+                        }
+                        //Empurra o jogador para trás
+                        if(enemy.posRect.x < player.posRect.x) {
+                        player.posRect.x += 3; 
+                        }else
                     player.posRect.x -= 3;  
-                    }
-                    }
+                }
                 if (IsKeyPressed(KEY_W) && !player.isJumping && countJump < 2) {
+                    PlaySound(fxPulo);
                     countJump += 1;
                     player.isJumping = true;
                     player.jumpForce = 150;
                 }
-                aplicarGravidade(&player, &countJump);
+                aplicarGravidade(&player, &countJump,0);
+                //Fim do personagem 1*/
+            }
 
+                if(player2Active){
+                    if(rand()%1000 == 6 && luckyLife2 == 0){
+                        luckyLife2 = 1;
+                    }
+                    if(IsKeyPressed(KEY_E) && luckyLife2 == 1){
+                            PlaySound(fxVidaExtra);
+                            player2.health = player2.health + 30;
+                            luckyLife2 = 0;
+                    }
+                    //Movimentação do personagem de numero 2
+                    if(IsKeyDown(KEY_D)){
+                        atualizarPersonagem(&player2, 1, WIDTHSCREEN);
+                        countSprite3 = ((int)GetTime())%2;
+                        player2.SourceRect = (Rectangle){80 * countSprite3 + 80,130,78,90};
+                    }else
+                        player2.SourceRect = (Rectangle){0,130,70,90};
+                
+                    if(IsKeyDown(KEY_A)){
+                        atualizarPersonagem(&player2, -1, WIDTHSCREEN);
+                        countSprite3 = ((int)GetTime())%2;
+                        player2.SourceRect = (Rectangle){80 * countSprite3 + 80,130,78,90};
+                    }
 
-                //Controle do segundo personagem
+                    if(IsKeyPressed(KEY_C) && player2.isAttacking == false && cooldownPlayer2 < GetTime()) {
+                        player2.isAttacking = true;
+                        timeAttack3 = GetTime() + 0.2; 
+                        cooldownPlayer2 = GetTime() + 1;
+                    }
+                    if(player2.isAttacking && GetTime() < timeAttack3){
+                        //Desenhe a animação de ataque
+                        player2.SourceRect = (Rectangle){280, 250, 94, 130};
+                        if(CheckCollisionRecs(enemy.posRect, player2.posRect)) {
+                            PlaySound(fxSoco);
+                            enemy.health -= 1;
+                        }
+                    }
+                    else if(player2.isAttacking && GetTime() >= timeAttack3) {
+                        //Se não estiver atacando ou o tempo de ataque acabar, volte para a animação padrão
+                        player2.SourceRect = DefaultSourcePlayer3;
+                        player2.isAttacking = false;
+                    }
+                    if(IsKeyPressed(KEY_W) && !player2.isJumping && countJump3 < 2) {
+                        PlaySound(fxPulo);
+                        countJump3 += 1;
+                        player2.isJumping = true;
+                        player2.jumpForce = 150;
+                    }
+
+                    if(IsKeyPressed(KEY_X) && Shield == false && cooldownShield < GetTime()){
+                        Shield = true;
+                        timeShield = GetTime() + 2;
+                        cooldownShield = GetTime() + 2;
+                        vidaInicial = player2.health;
+                    }
+                    if(Shield && GetTime() < timeShield){
+                        player2.SourceRect = (Rectangle){90,255,65,128};
+                    }
+                    else if(Shield == true && GetTime() >= timeShield) {
+                        //Se não estiver atacando ou o tempo de ataque acabar, volte para a animação padrão
+                        player2.SourceRect = DefaultSourcePlayer3;
+                        Shield = false;
+                        player2.health = vidaInicial;
+                    }
+
+                    aplicarGravidade(&player2, &countJump3,1);
+                    //Fim Controle do segundo personagem
+                }
+
+                if((rand()%1000 == 6) && luckyLife3 == 0){
+                    luckyLife3 = 1;
+                }
+                if(IsKeyPressed(KEY_J) && luckyLife3 == 1){
+                    PlaySound(fxVidaExtra);
+                    enemy.health = enemy.health + 30;
+                    luckyLife3 = 0;
+                }
                 if (IsKeyDown(KEY_RIGHT)){
                     atualizarPersonagem(&enemy, 1, WIDTHSCREEN);
                     countSprite2 = ((int)GetTime())%3;
@@ -478,32 +809,38 @@ int main(void) {
                     enemy.SourceRect = (Rectangle){100 * countSprite2,130,96,136};
                 }
 
-                if (IsKeyPressed(KEY_M) && enemy.isAttacking == false && cooldownEnemy < GetTime()) {
-                enemy.isAttacking = true;
-                timeAttack2 = GetTime() + 0.5; 
-                cooldownEnemy = GetTime() + 2;
+                if(IsKeyPressed(KEY_M) && enemy.isAttacking == false && cooldownEnemy < GetTime()) {
+                    enemy.isAttacking = true;
+                    timeAttack2 = GetTime() + 0.5; 
+                    cooldownEnemy = GetTime() + 2;
                 }
-                if (enemy.isAttacking && GetTime() < timeAttack2) {
-                // Desenhe a animação de ataque
-                enemy.SourceRect = (Rectangle){925, 670, 95, 150};
-                if(controlHeight < 1){
-                    enemy.posRect.y = enemy.posRect.y - 179;
-                    controlHeight++;
-                }
-                if (CheckCollisionRecs(enemy.posRect, player.posRect)) {
-                    player.health -= 1;
-                    PlaySound(fxSoco);
+                if(enemy.isAttacking && GetTime() < timeAttack2) {
+                    //Desenhe a animação de ataque
+                    enemy.SourceRect = (Rectangle){925, 670, 95, 150};
+                    if(controlHeight < 1){
+                        enemy.posRect.y = enemy.posRect.y - 179;
+                        controlHeight++;
+                    }
+                    if(player1Active){
+                        if(CheckCollisionRecs(enemy.posRect, player.posRect)) {
+                            player.health -= 1;
+                            PlaySound(fxSoco);
+                        }
+                    }else if(player2Active){
+                        if(CheckCollisionRecs(enemy.posRect, player2.posRect)) {
+                            player2.health -= 1;
+                            PlaySound(fxSoco);
+                    }
                 }
                 }else if(enemy.isAttacking && GetTime() >= timeAttack2) {
-                // Se não estiver atacando ou o tempo de ataque acabar, volte para a animação padrão
-                enemy.SourceRect = DefaultSourcePlayer2;
-                enemy.posRect.y = DefaultPositionPlayer2.y;
-                controlHeight = 0;
-                enemy.isAttacking = false;
+                    // Se não estiver atacando ou o tempo de ataque acabar, volte para a animação padrão
+                    enemy.SourceRect = DefaultSourcePlayer2;
+                    enemy.posRect.y = DefaultPositionPlayer2.y;
+                    controlHeight = 0;
+                    enemy.isAttacking = false;
                 }
-                
                 //Atualização da posição do projetil
-                if (IsKeyPressed(KEY_N) && cooldownProjectileEnemy < GetTime()) {
+                if(IsKeyPressed(KEY_N) && cooldownProjectileEnemy < GetTime()) {
                     dispararProjetil(&projetcileEnemy);
                     PlaySound(fxHadouken);
                     TimeProjectile2 = GetTime() + 2.0;
@@ -519,26 +856,32 @@ int main(void) {
                         enemy.SourceRect = DefaultSourcePlayer2;
 
                     //Se o projeto ultrapassar os limites da tela, ele deixa de ser ativo
-                    if (projetcileEnemy.Source.x < 0){
+                    if(projetcileEnemy.Source.x < 0){
                         projetcileEnemy.active = false;
-                        projetcileEnemy = (Projectile){enemy,{enemy.posRect.x,enemy.posRect.y,100,100 },{0,0,220,220},{10, 0}, false};                   }
+                        projetcileEnemy = (Projectile){enemy,{enemy.posRect.x,enemy.posRect.y,100,100 },{0,0,220,220},{10, 0}, false};                
+                    }
                     
-                    if(CheckCollisionRecs(projetcileEnemy.Source,posRect2)){
-                        player.health -= enemy.attackDamage;
-                        projetcileEnemy.active = false;
-                        projetcileEnemy = (Projectile){enemy,{enemy.posRect.x,enemy.posRect.y,100,100 },{0,0,220,220},{10, 0}, false};                    }
+                    if(player1Active){
+                        if(CheckCollisionRecs(projetcileEnemy.Source,posRect2)){
+                            player.health -= enemy.attackDamage;
+                            projetcileEnemy.active = false;
+                            projetcileEnemy = (Projectile){enemy,{enemy.posRect.x,enemy.posRect.y,100,100 },{0,0,220,220},{10, 0}, false};                    
+                        }
+                    }else if(player2Active){
+                        if(CheckCollisionRecs(projetcileEnemy.Source,posRect3)){
+                            player2.health -= 2 * enemy.attackDamage;
+                            projetcileEnemy.active = false;
+                            projetcileEnemy = (Projectile){enemy,{enemy.posRect.x,enemy.posRect.y,100,100 },{0,0,220,220},{10, 0}, false};                    
+                        }
+                    }
                 }
-
-
-                if (IsKeyPressed(KEY_UP) && !enemy.isJumping && countJump2 < 2) {
+                if(IsKeyPressed(KEY_UP) && !enemy.isJumping && countJump2 < 2) {
+                    PlaySound(fxPulo);
                     countJump2 += 1;
                     enemy.isJumping = true;
                     enemy.jumpForce = 150;
                 }
-                 if (CheckCollisionRecs(player.posRect, enemy.posRect)) {
-        
-                    player.velocity *= FATOR_REDUCAO;
-                    enemy.velocity *= FATOR_REDUCAO;
+                if(CheckCollisionRecs(player.posRect, enemy.posRect)) {
 
                     // Ajustar as posições dos personagens para evitar sobreposição
                     if (player.posRect.x < enemy.posRect.x) {
@@ -552,16 +895,46 @@ int main(void) {
                         estadoTela = Final;
                         tocaAudio(3);
                     }
-                 }
-                 aplicarGravidade(&enemy, &countJump2);
-                
-            } break;  
-            case Opcoes:
+                }
+                if(CheckCollisionRecs(player2.posRect, enemy.posRect)) {
+
+                    // Ajustar as posições dos personagens para evitar sobreposição
+                    if (player2.posRect.x < enemy.posRect.x) {
+                        player2.posRect.x -= 1;
+                        enemy.posRect.x += 1;
+                    } else {
+                        player2.posRect.x += 1;
+                        enemy.posRect.x -= 1;
+                    }
+                    if (player2.health <= 0 || enemy.health <= 0) {
+                        estadoTela = Final;
+                        tocaAudio(3);
+                    }
+                }
+                aplicarGravidade(&enemy, &countJump2,0);
+
+                if (player.health <= 0 || enemy.health <= 0 || player2.health <= 0){
+                    if(player.health > enemy.health && player1Active)
+                        whoWins = 1;
+                    else if(player2.health > enemy.health && player2Active)
+                        whoWins = 1;
+                    else if(player.health < enemy.health && player1Active)
+                        whoWins = 3;
+                    else if(player2.health < enemy.health && player2Active)
+                        whoWins = 3;
+
+                    estadoTela = Final;
+                    tocaAudio(3);
+                }
+            } break;
+            case Opcoes: 
             {
                 ///Percorrendo as sub-opções do options
                 //P volta a tela de titulo
-                if (IsKeyPressed(KEY_P))
+                if (IsKeyPressed(KEY_P)) {
                     estadoTela = Titulo;
+                    tocaAudio(1);
+                }
 
                 for (int i = 0; i < numItemsOptions; i++){
                     
@@ -601,15 +974,23 @@ int main(void) {
             case Final:
             {
                 //Volta para o inicio quando se apertar enter na tela final
-                
-
                 if (IsKeyPressed(KEY_ENTER)) {
-                    tocaAudio(1);
                     estadoTela = Titulo;
+                    tocaAudio(1);
                 }
+
+                player1Active = 0;
+                player2Active = 0;
+
+                player.health = 250;
+                player2.health = 250;
+                enemy.health = 250;
+
+                player.posRect = (Rectangle){200, 300, 350, 350};
+                player2.posRect = (Rectangle){200,250,350,350};
+                enemy.posRect = (Rectangle){900,300,350,350};
             } break;
             default: break;
-              
         }
         
         BeginDrawing();
@@ -620,8 +1001,7 @@ int main(void) {
             {
                 //Tela de esperapor 2 segundos
                 DrawTexture(texture4, 500, 300, WHITE);
-                DrawTextEx(font, "This is a loading screen. Wait for 2 seconds", textPosition2, 70, 2, WHITE);
-
+                DrawTextEx(font, "This a loading screen. Wait for 2 seconds", textPosition2, 70, 2, WHITE);
             } break;
             case Titulo:
             {
@@ -645,42 +1025,43 @@ int main(void) {
             {
                 
                 DrawTexture(texture9, 0, -200, WHITE);
-                DrawTextEx(font, "Choose your character", (Vector2){350, 100}, 60, 2, WHITE);
+                DrawTextEx(font, "Escolha seu personagem", (Vector2){150, 100}, 60, 2, WHITE);
 
                 DrawText("Bloodthirsty",150,300,40,WHITE);
                 DrawText("Warrior",500,300,40,WHITE);
-                DrawText("Fighter",850,300,40,WHITE);
+                DrawText("Oponente",900,300,40,WHITE);
 
                 DrawTexturePro(texture5,(Rectangle){50 * 0 + 24,88,50, 100},(Rectangle){100, 400, 350, 350},(Vector2){0, 0}, 0, WHITE);
-                DrawTexturePro(texture6,(Rectangle){100 * 0,130,100,136},(Rectangle){450,400,350,350},(Vector2){0, 0}, 0, WHITE);
-
+                DrawTexturePro(texture6,(Rectangle){100 * 0,130,100,136},(Rectangle){900,400,350,350},(Vector2){0, 0}, 0, WHITE);
+                DrawTexturePro(texture15,(Rectangle){70 * 0,130,70,90},(Rectangle){450,330,350,350},(Vector2){0, 0}, 0, WHITE);
             }break;
             case Mapa:
             {
                 DrawTexture(texture11, 0, 0, WHITE);
-                DrawTextEx(font, "Choose the map", (Vector2){420, 100}, 64, 2, WHITE);
+                DrawTextEx(font, "Escolha seu Mapa", (Vector2){420, 100}, 64, 2, WHITE);
 
                 DrawTexturePro(texture3,(Rectangle){0,0,1280,633},(Rectangle){150,400,250,250},(Vector2){0, 0}, 0, WHITE);
                 DrawTexturePro(texture12,(Rectangle){0,0,1280,633},(Rectangle){525,400,250,250},(Vector2){0, 0}, 0, WHITE);
                 DrawTexturePro(texture13,(Rectangle){0,0,1284,619},(Rectangle){925,400,250,250},(Vector2){0, 0}, 0, WHITE);
 
             }break;
-            case Gameplay:
+            case Solo:
             {
-                //Textura de fundo
-                DrawTexture(texture14, 0, 0, WHITE);
-                desenharCharacter(&player,texture5);
+                DrawTexture(texture3, 0, 0, WHITE);
                 desenharCharacter(&enemy,texture6);
-                
+                desenharCharacter(&player,texture5);
+
+                if(luckyLife1 == 1){
+                    DrawText("PRESS E TO GAIN LIFE BONUS",300,180,20,YELLOW);
+                }
+
                 //Desenhando a base(piso) dos personagems
                 DrawRectangle(0, 600, WIDTHSCREEN, 120, DARKBROWN);
 
-                //Desenhando o titulo
                 DrawTextEx(font, "Bloody War", textPosition3, 100, 2, RED);
 
-                //Barra de vida dos personagens
                 DrawRectangle(10, 10, player.health * 2, 20, WHITE);
-                DrawRectangle(1080, 10, enemy.health * 2, 20, RED);
+                DrawRectangle(770, 10, enemy.health * 2, 20, RED);
 
                 //Cronometro
                 char numeroString[20];
@@ -698,10 +1079,57 @@ int main(void) {
                 if (projetcileEnemy.active == true) {
                    DrawTexturePro(texture8,projetcileEnemy.Position,projetcileEnemy.Source,(Vector2){0, 0}, 0, WHITE);
                 }
-                if (player.health <= 0 || enemy.health <= 0) {
-                    estadoTela = Final;
-                }
 
+            }break;
+            case Gameplay:
+            {
+                
+                //Textura de fundo
+                DrawTexture(texture14, 0, 0, WHITE);
+                desenharCharacter(&enemy,texture6);
+                if(player1Active)
+                    desenharCharacter(&player,texture5);
+                if(player2Active)
+                    desenharCharacter(&player2,texture15);
+
+                if(luckyLife1 == 1 || luckyLife2 == 1){
+                    DrawText("PRESS E TO GAIN LIFE BONUS",300,180,20,YELLOW);
+                }
+                if(luckyLife3 == 1){
+                    DrawText("PRESS J TO GAIN LIFE BONUS",900,180,20,YELLOW);
+                }
+                
+                //Desenhando a base(piso) dos personagems
+                DrawRectangle(0, 600, WIDTHSCREEN, 120, DARKBROWN);
+
+                //Desenhando o titulo
+                DrawTextEx(font, "Bloody War", textPosition3, 100, 2, RED);
+
+                //Barra de vida dos personagens
+                if(player1Active)
+                    DrawRectangle(10, 10, player.health * 2, 20, WHITE);
+                if(player2Active)
+                    DrawRectangle(10, 10, player2.health *  2, 20, WHITE);
+                    
+                DrawRectangle(770, 10, enemy.health * 2, 20, RED);
+
+                //Cronometro
+                char numeroString[20];
+                sprintf(numeroString, "%d", count);
+                DrawText(numeroString, WIDTHSCREEN / 2, 15, 30, GREEN);
+
+                //Desenha os nomes dos personagens 
+                DrawText(player.name, 20, 70, 40, MAROON);
+                DrawText(enemy.name, 1120, 70, 40, WHITE);
+
+                //Desenhando o projetil caso esteja ativo
+                if (projetcilePlayer.active == true) {
+                   DrawTexturePro(texture7,projetcilePlayer.Position,projetcilePlayer.Source,(Vector2){0, 0}, 0, WHITE);
+                }
+                if (projetcileEnemy.active == true) {
+                   DrawTexturePro(texture8,projetcileEnemy.Position,projetcileEnemy.Source,(Vector2){0, 0}, 0, WHITE);
+                }
+                
             } break;
             case Opcoes:
             {
@@ -717,22 +1145,30 @@ int main(void) {
                 //Descrevendo os controles basicos
                 DrawText("Player 1 Controls:",100,100,30,WHITE);
                 DrawText("D -> move to the right | A -> move to the left",100,150,30,WHITE);
-                DrawText("W -> jump",100,200,30,WHITE);
-                DrawText("C -> close attack | X -> shoot projectile ",100,250,30,WHITE);
+                DrawText("W -> to jump",100,200,30,WHITE);
+                DrawText("C -> hand-to-hand attack | X -> shoot projectile ",100,250,30,WHITE);
 
                 DrawText("Player 2 Controls:",100,350,30,GRAY);
                 DrawText("Right arrow -> move to the right | Left arrow -> move to the left",100,400,30,GRAY);
-                DrawText("Up arrow -> jump",100,450,30,GRAY);
-                DrawText("M -> close attack | N -> shoot projectile ",100,500,30,GRAY);
+                DrawText("Up arrow -> to jump",100,450,30,GRAY);
+                DrawText("M -> hand-to-hand attack | N -> shoot projectile ",100,500,30,GRAY);
 
             }break;
             case Final:
             {
                 ClearBackground(BLACK);
                 DrawTexture(texture10,300,0, WHITE);
-                DrawText("Press Enter to go back to Menu",250,500,50,WHITE);
-                if (IsKeyPressed(KEY_ENTER))
-                estadoTela = Titulo;
+                DrawText("Digite Enter To Back Menu",250,500,50,WHITE);
+                if (IsKeyPressed(KEY_ENTER)) 
+                    estadoTela = Titulo;
+
+                if(whoWins == 1)
+                    DrawText("Player 1 Wins",250,600,50,WHITE);
+                else if(whoWins == 2)
+                    DrawText("Enemy Wins",250,600,50,WHITE);
+                else if(whoWins == 3)
+                    DrawText("Player 2 Wins",250,600,50,WHITE);
+
     
             }break;
             default: break;
@@ -749,6 +1185,7 @@ int main(void) {
     UnloadSound(fxPulo);
     UnloadSound(fxSelecao);
     UnloadSound(fxSoco);
+    UnloadSound(fxVidaExtra);
 
     CloseAudioDevice();
 
