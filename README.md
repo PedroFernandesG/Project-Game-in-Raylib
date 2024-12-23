@@ -18,7 +18,8 @@ raylib
 ```
 ### 1.Create a folder to open the project
 
-### 2.In the terminal or in VSCode, inside the created folder,
+### 2.In the terminal or in VSCode, inside the created folder
+
 ### Type the commands:
 
 ```
@@ -41,5 +42,30 @@ make all
 ```
 
 ### Now we download [raylib](https://raysan5.itch.io/raylib/download/eyJpZCI6ODUzMzEsImV4cGlyZXMiOjE3MzQ5MTY3OTl9.CxxBIv0ec4GUpy9RZ8QicgH4R%2bw%3d)
+
+### 1. Create a folder to open the project
+
+### 2. Look for the “raylib” file of type header(raylib\raylib\src\raylib.h) and place it in this folder
+
+### 3. In the terminal or in VSCode, inside the created folder, type the command:
+
+```
+git clone https://github.com/mrcndz/exemplo-raylib.git
+```
+
+### 4. Open MakeFile and change RAYLIB_PATH(line 30) and COMPILER_PATH(line 33) to the path on your pc
+
+### RAYLIB_PATH = raylib\raylib\src
+### COMPILER_PATH = raylib/w64devkit/bin
+
+### 5. In the terminal, compile the program with the command:
+```
+mingw32-make PLATFORM=PLATFORM_DESKTOP
+``` 
+
+### 6. In the terminal, run the program with the command:
+```
+./GameName
+```
 
 
