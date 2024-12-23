@@ -19,7 +19,7 @@ raylib
 ### 1.Create a folder to open the project
 
 ### 2.In the terminal or in VSCode, inside the created folder,
-### type the commands:
+### Type the commands:
 
 ```
 git clone https://github.com/mrcndz/exemplo-raylib.git
@@ -27,3 +27,19 @@ cd example-raylib
 make all
 ./nomedojogo
 ```
+
+## Installing Raylib on Windows
+
+### First we need to download [Git](https://git-scm.com/downloads/win)
+
+### After downloading, configure with the commands:
+
+```
+1.git --version (test if downloaded)
+2.git config --global user.name (enter your name)
+3.git config --global user.email (enter your email address)
+```
+
+### Now we download [raylib](https://raysan5.itch.io/raylib/download/eyJpZCI6ODUzMzEsImV4cGlyZXMiOjE3MzQ5MTY3OTl9.CxxBIv0ec4GUpy9RZ8QicgH4R%2bw%3d)
+
+
